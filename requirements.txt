@@ -1,1 +1,8 @@
-
+python-telegram-bot[job-queue]==21.10
+httpx==0.28.1
+openai==1.68.2
+pydantic==2.11.1
+pydantic-settings==2.8.1
+PyGithub==2.6.1
+redis==5.2.1
+sqlitedict==2.1.0
