@@ -1,36 +1,30 @@
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 class Config:
-    # Telegram
-    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-    OWNER_ID = 6300997264  # ایدی عددی خودت
+    """تنظیمات ربات — از متغیرهای محیطی خونده میشه"""
 
-    # AI APIs
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    # === تلگرام ===
+    BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
+    BOT_USERNAME: str = os.getenv("BOT_USERNAME", "")
+    OWNER_ID: int = int(os.getenv("OWNER_ID", "0"))
+    ALLOWED_GROUP_ID: int = int(os.getenv("ALLOWED_GROUP_ID", "0"))
 
-    # GitHub
-    GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-    GITHUB_REPO_OWNER = os.getenv("GITHUB_REPO_OWNER")
-    GITHUB_REPO_NAME = os.getenv("GITHUB_REPO_NAME")
+    # === OpenAI (ChatGPT) ===
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
 
-    # Storage group
-    GROUP_ID = -1004397313215
+    # === DeepSeek ===
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
+    DEEPSEEK_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
-    # AI model names
-    OPENAI_MODEL = "gpt-4o"
-    DEEPSEEK_MODEL = "deepseek-chat"
-    GROQ_MODEL = "llama-3.3-70b-versatile"
+    # === Groq ===
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
-    @classmethod
-    def validate(cls):
-        required = ["TELEGRAM_BOT_TOKEN"]
-        missing = [r for r in required if not getattr(cls, r)]
-        if missing:
-            raise ValueError(f"Missing: {', '.join(missing)}")
-        if not cls.GROUP_ID:
-            raise ValueError("GROUP_ID is required")
+    # === GitHub ===
+    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+    GITHUB_REPO: str = os.getenv("GITHUB_REPO", "")
+    GITHUB_BRANCH: str = os.getenv("GITHUB_BRANCH", "main")
+
+    # === Storage ===
+    STORAGE_PATH: str = os.getenv("STORAGE_PATH", "bot_data.db")
