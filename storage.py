@@ -1,41 +1,93 @@
+import json
+import sqlite3
+import os
 import logging
-from telegram import Bot, InputFile
-from telegram.ext import ContextTypes
-
+from typing import Any
 from config import Config
 
 logger = logging.getLogger(__name__)
 
-class GroupStorage:
-    """ذخیره‌سازی فایل‌ها مستقیم تو گروه — بدون هیچ فایلی رو گوشی"""
+class Storage:
+    """ذخیره‌سازی لوکال — SQLite + JSON fallback"""
 
-    def __init__(self, bot: Bot):
-        self.bot = bot
-        self.group_id = Config.GROUP_ID
+    def __init__(self):
+        self.db_path = Config.STORAGE_PATH or "bot_data.db"
+        self._init_db()
 
-    async def save_file(self, file_obj, filename: str, caption: str = "") -> int:
-        """ذخیره فایل تو گروه و برگردوندن message_id"""
-        try:
-            msg = await self.bot.send_document(
-                chat_id=self.group_id,
-                document=file_obj,
-                filename=filename,
-                caption=caption
-            )
-            logger.info(f"File saved to group: {filename} (msg_id: {msg.message_id})")
-            return msg.message_id
-        except Exception as e:
-            logger.error(f"Failed to save file: {e}")
-            raise
+    def _init_db(self):
+        """ساخت جدول‌ها اگه وجود نداشته باشن"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    data TEXT DEFAULT '{}'
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS stats (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
+            conn.commit()
+        logger.info(f"✅ Storage initialized: {self.db_path}")
 
-    async def get_file_by_msg_id(self, msg_id: int, target_chat_id: int):
-        """فوروارد فایل از گروه به کاربر (بدون ذخیره)"""
-        try:
-            await self.bot.forward_message(
-                chat_id=target_chat_id,
-                from_chat_id=self.group_id,
-                message_id=msg_id
-            )
-        except Exception as e:
-            logger.error(f"Failed to forward msg {msg_id}: {e}")
-            raise
+    def get_user(self, user_id: int) -> dict | None:
+        """گرفتن اطلاعات یوزر"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM users WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            if row:
+                data = dict(row)
+                data["data"] = json.loads(data.get("data", "{}"))
+                return data
+        return None
+
+    def upsert_user(self, user_id: int, username: str = "", data: dict = None):
+        """اضافه یا آپدیت یوزر"""
+        existing = self.get_user(user_id)
+        current_data = json.loads(existing["data"]) if existing else {}
+        if data:
+            current_data.update(data)
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO users (user_id, username, last_seen, data)
+                VALUES (?, ?, CURRENT_TIMESTAMP, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    username = COALESCE(NULLIF(?, ''), username),
+                    last_seen = CURRENT_TIMESTAMP,
+                    data = ?
+            """, (user_id, username, json.dumps(current_data),
+                  username, json.dumps(current_data)))
+            conn.commit()
+
+    def get_stat(self, key: str) -> str | None:
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT value FROM stats WHERE key = ?", (key,)
+            ).fetchone()
+            return row[0] if row else None
+
+    def set_stat(self, key: str, value: Any):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO stats (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = ?
+            """, (key, str(value), str(value)))
+            conn.commit()
+
+    def get_all_users(self) -> list[int]:
+        """لیست همه user_id ها"""
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute("SELECT user_id FROM users").fetchall()
+            return [r[0] for r in rows]
+
+    def count_users(self) -> int:
+        with sqlite3.connect(self.db_path) as conn:
+            return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
